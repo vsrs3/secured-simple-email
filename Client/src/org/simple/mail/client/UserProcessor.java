@@ -15,7 +15,7 @@ public class UserProcessor {
 	private Request request;
 	private Response response;
 	private TcpChannel channel;
-	
+
 	public UserProcessor(Socket sock){
 		this.socket = sock;
 		try {
@@ -27,46 +27,38 @@ public class UserProcessor {
 
 	public int process() throws IOException {
 		String command = request.getCommand();
-//		System.out.println("Sending request: " + request.craftToString());
 
+		// Handle DATA command with the new secure approach
+		if (command.compareToIgnoreCase(Command.DATA) == 0) {
+			return handleSecureDataCommand();
+		}
+
+		// For all other commands, use the regular approach
 		channel.sendRequest(request);
 		response = channel.receiveResponse();
 
 		if (response != null) {
-//			System.out.println("Received response: " + response.craftToString());
 			handleResponse(command);
 			return 0;
 		} else {
-//			System.out.println("No response received from server");
 			return -1;
 		}
 	}
-	
-	public void setResponse(Response res){
-		this.response = res;
-	}
-	
-	public void setRequest(Request req){
-		this.request = req;
-	}
-	
-	private void handleResponse(String command) throws IOException{
-		System.out.println("Receive: " + response.craftToString());
-		
-		String returnCode = response.getCode();
-		if (returnCode.compareTo(Response.SUCCESS) == 0){
-			if (command.compareToIgnoreCase(Command.DATA) == 0)
-				doDataResponse();
-			else if (command.compareToIgnoreCase(Command.LIST) == 0)
-				doListResponse();
-			else if (command.compareToIgnoreCase(Command.RETRIEVE) == 0)
-				doRetrieveResponse();
-		}
-	}
 
-	private void doDataResponse() throws IOException {
-		System.out.println("Enter email content, end with \".\" on a line by itself:");
+	/**
+	 * Handles the DATA command securely by:
+	 * 1. Collecting email content first
+	 * 2. Encrypting and signing it
+	 * 3. Only sending to the server if all security steps succeed
+	 *
+	 * This prevents unencrypted emails from being sent to the server
+	 * when there are issues with certificates or keys.
+	 */
+	private int handleSecureDataCommand() throws IOException {
 		BufferedReader user = new BufferedReader(new InputStreamReader(System.in));
+
+		// First collect the email content (not sending DATA command yet)
+		System.out.println("Enter email content, end with \".\" on a line by itself:");
 		StringBuilder emailContent = new StringBuilder();
 		String line;
 
@@ -78,6 +70,7 @@ public class UserProcessor {
 			}
 		} while (!line.equals(Mail.END_MAIL));
 
+		// Now that we have the content, try to encrypt it
 		try {
 			// Ask for recipient's public key certificate
 			System.out.print("Enter path to recipient's certificate: ");
@@ -85,11 +78,8 @@ public class UserProcessor {
 
 			if (!new java.io.File(recipientCertPath).exists()) {
 				System.err.println("Error: Certificate file not found!");
-				// Send the dot to end email input mode
-				channel.sendRequest(new Request(Mail.END_MAIL));
-				response = channel.receiveResponse();
-				System.out.println(response.craftToString());
-				return;
+				System.out.println("Email was not sent. Please try again.");
+				return 0; // Return without sending anything to the server
 			}
 
 			// Load recipient's public key
@@ -98,10 +88,8 @@ public class UserProcessor {
 				recipientPublicKey = CryptoUtils.loadPublicKey(recipientCertPath);
 			} catch (Exception e) {
 				System.err.println("Error: Cannot load recipient's certificate: " + e.getMessage());
-				channel.sendRequest(new Request(Mail.END_MAIL));
-				response = channel.receiveResponse();
-				System.out.println(response.craftToString());
-				return;
+				System.out.println("Email was not sent. Please try again.");
+				return 0; // Return without sending anything to the server
 			}
 
 			// Ask for sender's private key
@@ -110,10 +98,8 @@ public class UserProcessor {
 
 			if (!new java.io.File(senderPrivateKeyPath).exists()) {
 				System.err.println("Error: Private key file not found!");
-				channel.sendRequest(new Request(Mail.END_MAIL));
-				response = channel.receiveResponse();
-				System.out.println(response.craftToString());
-				return;
+				System.out.println("Email was not sent. Please try again.");
+				return 0; // Return without sending anything to the server
 			}
 
 			// Ask for private key password
@@ -126,10 +112,8 @@ public class UserProcessor {
 				senderPrivateKey = CryptoUtils.loadPrivateKey(senderPrivateKeyPath, password);
 			} catch (Exception e) {
 				System.err.println("Error: Cannot load private key. Wrong password or invalid key format: " + e.getMessage());
-				channel.sendRequest(new Request(Mail.END_MAIL));
-				response = channel.receiveResponse();
-				System.out.println(response.craftToString());
-				return;
+				System.out.println("Email was not sent. Please try again.");
+				return 0; // Return without sending anything to the server
 			}
 
 			System.out.println("Encrypting and signing email...");
@@ -158,7 +142,20 @@ public class UserProcessor {
 					CryptoUtils.encodeBase64(encryptedContent)
 			);
 
-			// Send the secure email line by line
+			// Email encryption and signing successful, now send DATA command
+			Request dataRequest = new Request(Command.DATA);
+			channel.sendRequest(dataRequest);
+			response = channel.receiveResponse();
+
+			if (response == null || !response.getCode().equals(Response.SUCCESS)) {
+				System.out.println("Server rejected DATA command: " +
+						(response != null ? response.craftToString() : "No response"));
+				return 0;
+			}
+
+			System.out.println("Receive: " + response.craftToString());
+
+			// Now send the secure email line by line
 			String[] secureEmailLines = secureEmail.toString().split("\n");
 			for (String emailLine : secureEmailLines) {
 				channel.sendRequest(new Request(emailLine));
@@ -169,19 +166,44 @@ public class UserProcessor {
 
 			// Receive and display the server response
 			response = channel.receiveResponse();
-			System.out.println("Email sent successfully: " + response.craftToString());
+			System.out.println("Receive: " + response.craftToString());
+			return 0;
 
 		} catch (Exception e) {
 			System.err.println("Error securing email: " + e.getMessage());
 			e.printStackTrace();
-
-			// Send the dot to end email input mode
-			channel.sendRequest(new Request(Mail.END_MAIL));
-			response = channel.receiveResponse();
-			System.out.println(response.craftToString());
+			System.out.println("Email was not sent due to encryption errors. Please try again.");
+			return 0; // Return without sending anything to the server
 		}
 	}
-	
+
+	public void setResponse(Response res){
+		this.response = res;
+	}
+
+	public void setRequest(Request req){
+		this.request = req;
+	}
+
+	private void handleResponse(String command) throws IOException{
+		System.out.println("Receive: " + response.craftToString());
+
+		String returnCode = response.getCode();
+		if (returnCode.compareTo(Response.SUCCESS) == 0){
+			// Remove special handling for DATA as it's now handled in process()
+			if (command.compareToIgnoreCase(Command.LIST) == 0)
+				doListResponse();
+			else if (command.compareToIgnoreCase(Command.RETRIEVE) == 0)
+				doRetrieveResponse();
+		}
+	}
+
+	// No longer needed as we handle DATA in a different way
+	private void doDataResponse() throws IOException {
+		// This method is kept for backward compatibility but should not be called
+		System.err.println("ERROR: doDataResponse() called directly. This should not happen.");
+	}
+
 	private void doListResponse() throws IOException{
 		StringBuilder builder = new StringBuilder();
 		int numberOfMail = Integer.parseInt(response.getNotice());
@@ -190,7 +212,6 @@ public class UserProcessor {
 		System.out.println(builder.toString());
 	}
 
-	// Update this method in UserProcessor.java
 	private void doRetrieveResponse() throws IOException {
 		StringBuilder emailBuilder = new StringBuilder();
 		String line;

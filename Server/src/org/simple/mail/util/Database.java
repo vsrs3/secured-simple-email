@@ -85,7 +85,7 @@ public class Database {
 		){
 			selectStmt.setString(1, recipient);			
 			ResultSet rs = selectStmt.executeQuery();
-			if(rs.first()){
+			if(rs.next()){
 				Mail mail = new Mail();
 				do{
 					mail = new Mail();
