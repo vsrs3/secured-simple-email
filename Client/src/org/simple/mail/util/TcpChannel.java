@@ -19,8 +19,24 @@ public class TcpChannel {
 		out = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()));
 	}
 	
-	public int sendRequest(Request request){
-		String message = request.getRaw();
+//	public int sendRequest(Request request){
+//		String message = request.getRaw();
+//		out.println(message);
+//		out.flush();
+//		return message.length();
+//	}
+
+	public int sendRequest(Request request) {
+		String message;
+
+		// Use craftToString() instead of getRaw() to ensure proper formatting
+		if (request.getRaw() != null) {
+			message = request.getRaw();
+		} else {
+			message = request.craftToString();
+		}
+
+//		System.out.println("Send: " + message);
 		out.println(message);
 		out.flush();
 		return message.length();

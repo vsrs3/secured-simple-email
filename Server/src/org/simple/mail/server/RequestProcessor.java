@@ -1,16 +1,12 @@
 package org.simple.mail.server;
 
+import org.simple.mail.util.*;
+
 import java.sql.SQLException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
-
-import org.simple.mail.util.Command;
-import org.simple.mail.util.Database;
-import org.simple.mail.util.Mail;
-import org.simple.mail.util.Request;
-import org.simple.mail.util.Response;
 
 public class RequestProcessor{ 
 	private Request request;
@@ -125,22 +121,45 @@ public class RequestProcessor{
 	public int doQuit(){
 		return -1;
 	}
-	
-	public void doRetrieve(){
+
+	public void doRetrieve() {
 		response = new Response();
-		if(session.getStatus() == Session.USER_IDENTIFIED){
-			Mail mail = db.retrieveMail(session.getUser(),Integer.parseInt(request.getParameter()));
-			if(mail != null){
-				StringBuilder result = new StringBuilder();
-				String rawMail = mail.craftToString();
-				result.append(rawMail.length());
-				result.append("\n");
-				result.append(rawMail);
-				response.setContent(Response.SUCCESS, result.toString());				
+
+		// Debug: Print current session status
+//		System.out.println("Current session status: " + session.getStatus());
+//		System.out.println("Current user: " + session.getUser());
+
+		if (session.getStatus() == Session.USER_IDENTIFIED) {
+			try {
+				int mailId = Integer.parseInt(request.getParameter());
+//				System.out.println("Attempting to retrieve mail with ID: " + mailId +
+//						" for user: " + session.getUser());
+
+				Mail mail = db.retrieveMail(session.getUser(), mailId);
+
+				if (mail != null) {
+					StringBuilder result = new StringBuilder();
+					String rawMail = mail.craftToString();
+					result.append(rawMail.length());
+					result.append("\n");
+					result.append(rawMail);
+					response.setContent(Response.SUCCESS, result.toString());
+//					System.out.println("Mail retrieved successfully");
+				} else {
+//					System.out.println("Mail not found in database");
+					response.setContent(Response.ERROR, Response.RETRIEVE_FAIL);
+				}
+			} catch (NumberFormatException e) {
+				System.err.println("Invalid mail ID format: " + request.getParameter());
+				response.setContent(Response.ERROR, "Invalid mail ID format");
+			} catch (Exception e) {
+				System.err.println("Error retrieving mail: " + e.getMessage());
+				response.setContent(Response.ERROR, "Error: " + e.getMessage());
 			}
-			else response.setContent(Response.ERROR, Response.RETRIEVE_FAIL);
+		} else {
+			System.out.println("Bad sequence: User not identified");
+			response.setContent(Response.ERROR, Response.BAD_SEQUENCE);
 		}
-		else response.setContent(Response.ERROR, Response.BAD_SEQUENCE);				
 	}
 	
 	public void doWrong(){

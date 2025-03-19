@@ -45,26 +45,35 @@ public class Database {
 		}
 		return ret;
 	}
-	
-	public Mail retrieveMail(String recipient, int id){
+
+	public Mail retrieveMail(String recipient, int id) {
 		Mail mail = null;
 		String query = "SELECT * FROM tbl_mails WHERE recipient = ? AND id = ?;";
-		try(PreparedStatement selectStmt = conn.prepareStatement(query)
-		){
+
+		try (PreparedStatement selectStmt = conn.prepareStatement(query)) {
 			selectStmt.setString(1, recipient);
 			selectStmt.setInt(2, id);
+
+//			System.out.println("Executing query: " + selectStmt.toString());
+
 			ResultSet rs = selectStmt.executeQuery();
-			if(rs.first()){
+
+			if (rs.next()) {  // Changed from rs.first() to rs.next()
 				mail = new Mail();
 				mail.setId(rs.getInt("id"));
 				mail.setSender(rs.getString("sender"));
 				mail.setRecipient(rs.getString("recipient"));
 				mail.setBody(rs.getString("body"));
 				mail.setTime(rs.getTimestamp("date"));
-			}				
-		}catch(SQLException e){
+				System.out.println("Mail found with ID: " + id);
+			} else {
+				System.out.println("No mail found with ID: " + id + " for recipient: " + recipient);
+			}
+		} catch (SQLException e) {
+			System.err.println("Error retrieving mail: " + e.getMessage());
 			e.printStackTrace();
 		}
+
 		return mail;
 	}
 	
