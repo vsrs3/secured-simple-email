@@ -28,12 +28,10 @@ public class UserProcessor {
 	public int process() throws IOException {
 		String command = request.getCommand();
 
-		// Handle DATA command with the new secure approach
 		if (command.compareToIgnoreCase(Command.DATA) == 0) {
 			return handleSecureDataCommand();
 		}
 
-		// For all other commands, use the regular approach
 		channel.sendRequest(request);
 		response = channel.receiveResponse();
 
@@ -46,12 +44,7 @@ public class UserProcessor {
 	}
 
 	/**
-	 * Handles the DATA command securely by:
-	 * 1. Collecting email content first
-	 * 2. Encrypting and signing it
-	 * 3. Only sending to the server if all security steps succeed
-	 *
-	 * This prevents unencrypted emails from being sent to the server
+	 * This method prevents unencrypted emails from being sent to the server
 	 * when there are issues with certificates or keys.
 	 */
 	private int handleSecureDataCommand() throws IOException {
@@ -70,50 +63,44 @@ public class UserProcessor {
 			}
 		} while (!line.equals(Mail.END_MAIL));
 
-		// Now that we have the content, try to encrypt it
 		try {
-			// Ask for recipient's public key certificate
 			System.out.print("Enter path to recipient's certificate: ");
 			String recipientCertPath = user.readLine();
 
 			if (!new java.io.File(recipientCertPath).exists()) {
 				System.err.println("Error: Certificate file not found!");
 				System.out.println("Email was not sent. Please try again.");
-				return 0; // Return without sending anything to the server
+				return 0;
 			}
 
-			// Load recipient's public key
 			PublicKey recipientPublicKey;
 			try {
 				recipientPublicKey = CryptoUtils.loadPublicKey(recipientCertPath);
 			} catch (Exception e) {
 				System.err.println("Error: Cannot load recipient's certificate: " + e.getMessage());
 				System.out.println("Email was not sent. Please try again.");
-				return 0; // Return without sending anything to the server
+				return 0;
 			}
 
-			// Ask for sender's private key
 			System.out.print("Enter path to your private key: ");
 			String senderPrivateKeyPath = user.readLine();
 
 			if (!new java.io.File(senderPrivateKeyPath).exists()) {
 				System.err.println("Error: Private key file not found!");
 				System.out.println("Email was not sent. Please try again.");
-				return 0; // Return without sending anything to the server
+				return 0;
 			}
 
-			// Ask for private key password
 			System.out.print("Enter password for your private key: ");
 			char[] password = user.readLine().toCharArray();
 
-			// Load sender's private key
 			PrivateKey senderPrivateKey;
 			try {
 				senderPrivateKey = CryptoUtils.loadPrivateKey(senderPrivateKeyPath, password);
 			} catch (Exception e) {
 				System.err.println("Error: Cannot load private key. Wrong password or invalid key format: " + e.getMessage());
 				System.out.println("Email was not sent. Please try again.");
-				return 0; // Return without sending anything to the server
+				return 0;
 			}
 
 			System.out.println("Encrypting and signing email...");
@@ -198,12 +185,6 @@ public class UserProcessor {
 		}
 	}
 
-	// No longer needed as we handle DATA in a different way
-	private void doDataResponse() throws IOException {
-		// This method is kept for backward compatibility but should not be called
-		System.err.println("ERROR: doDataResponse() called directly. This should not happen.");
-	}
-
 	private void doListResponse() throws IOException{
 		StringBuilder builder = new StringBuilder();
 		int numberOfMail = Integer.parseInt(response.getNotice());
@@ -226,6 +207,28 @@ public class UserProcessor {
 
 		String rawEmail = emailBuilder.toString();
 
+		// Extract header information
+		String from = "";
+		String to = "";
+		String date = "";
+
+		// Parse header information from the raw email
+		String[] lines = rawEmail.split("\n");
+		for (String headerLine : lines) {
+			if (headerLine.startsWith(Mail.FROM)) {
+				from = headerLine;
+			} else if (headerLine.startsWith(Mail.TO)) {
+				to = headerLine;
+			} else if (headerLine.startsWith(Mail.DATE)) {
+				date = headerLine;
+			}
+
+			// Stop parsing once we reach an empty line (header/body separator)
+			if (headerLine.trim().isEmpty()) {
+				break;
+			}
+		}
+
 		// Check if this is a secure email
 		if (SecureEmail.isSecureEmail(rawEmail)) {
 			try {
@@ -240,9 +243,6 @@ public class UserProcessor {
 
 				if (!new java.io.File(senderCertPath).exists()) {
 					System.err.println("Error: Certificate file not found!");
-					System.out.println("\nRaw Email (verification failed):");
-					System.out.println("------------------------------");
-					System.out.println(rawEmail);
 					return;
 				}
 
@@ -252,9 +252,6 @@ public class UserProcessor {
 					senderPublicKey = CryptoUtils.loadPublicKey(senderCertPath);
 				} catch (Exception e) {
 					System.err.println("Error: Cannot load sender's certificate: " + e.getMessage());
-					System.out.println("\nRaw Email (verification failed):");
-					System.out.println("------------------------------");
-					System.out.println(rawEmail);
 					return;
 				}
 
@@ -263,47 +260,33 @@ public class UserProcessor {
 				byte[] encryptedContent = CryptoUtils.decodeBase64(secureEmail.getBase64EncryptedContent());
 
 				// Verify the signature
-				boolean signatureValid = false;
+				boolean signatureValid;
 				try {
 					signatureValid = CryptoUtils.verifySignature(encryptedContent, signature, senderPublicKey);
 				} catch (Exception e) {
 					System.err.println("Error verifying signature: " + e.getMessage());
-					System.out.println("\nRaw Email (verification failed):");
-					System.out.println("------------------------------");
-					System.out.println(rawEmail);
 					return;
 				}
 
 				if (signatureValid) {
 					System.out.println("Signature verification successful! Email is authentic.");
 
-					// Continue with decryption
-
-					// Ask for recipient's private key
 					System.out.print("Enter path to your private key: ");
 					String recipientPrivateKeyPath = user.readLine();
 
 					if (!new java.io.File(recipientPrivateKeyPath).exists()) {
 						System.err.println("Error: Private key file not found!");
-						System.out.println("\nRaw Email (cannot decrypt):");
-						System.out.println("------------------------------");
-						System.out.println(rawEmail);
 						return;
 					}
 
-					// Ask for private key password
 					System.out.print("Enter password for your private key: ");
 					char[] password = user.readLine().toCharArray();
 
-					// Load recipient's private key
 					PrivateKey recipientPrivateKey;
 					try {
 						recipientPrivateKey = CryptoUtils.loadPrivateKey(recipientPrivateKeyPath, password);
 					} catch (Exception e) {
 						System.err.println("Error: Cannot load private key. Wrong password or invalid key format: " + e.getMessage());
-						System.out.println("\nRaw Email (cannot decrypt):");
-						System.out.println("------------------------------");
-						System.out.println(rawEmail);
 						return;
 					}
 
@@ -320,27 +303,25 @@ public class UserProcessor {
 						byte[] decryptedContent = CryptoUtils.decryptAES(encryptedContent, aesKey, iv);
 						String decryptedEmail = new String(decryptedContent);
 
-						// Display the decrypted email
+						// Display the decrypted email with header information
 						System.out.println("\nDecrypted Email:");
 						System.out.println("----------------");
+						System.out.println(from);
+						System.out.println(to);
+						System.out.println(date);
+						System.out.println();
 						System.out.println(decryptedEmail);
 					} catch (Exception e) {
 						System.err.println("Error decrypting email: " + e.getMessage());
-						System.out.println("\nRaw Email (decryption failed):");
-						System.out.println("------------------------------");
-						System.out.println(rawEmail);
+						return;
 					}
 				} else {
 					System.err.println("Signature verification failed! Email may have been tampered with.");
-					System.out.println("\nRaw Email (invalid signature):");
-					System.out.println("------------------------------");
-					System.out.println(rawEmail);
+					return;
 				}
 			} catch (Exception e) {
 				System.err.println("Error processing secure email: " + e.getMessage());
-				System.out.println("\nRaw Email (processing error):");
-				System.out.println("------------------------------");
-				System.out.println(rawEmail);
+				return;
 			}
 		} else {
 			// This is a regular, unencrypted email

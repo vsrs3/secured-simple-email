@@ -39,7 +39,7 @@ public class CryptoUtils {
     private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
 
     /**
-     * Extracts a private key from a PKCS#8 encrypted file (Criterion 2)
+     * Extracts a private key from a PKCS#8 encrypted file
      */
     public static PrivateKey loadPrivateKey(String privateKeyPath, char[] password) throws Exception {
         try (PEMParser pemParser = new PEMParser(new FileReader(privateKeyPath))) {
@@ -61,7 +61,7 @@ public class CryptoUtils {
     }
 
     /**
-     * Extracts a public key from an X.509 certificate file (Criterion 2)
+     * Extracts a public key from an X.509 certificate file
      */
     public static PublicKey loadPublicKey(String certificatePath) throws Exception {
         try (PEMParser pemParser = new PEMParser(new FileReader(certificatePath))) {
@@ -81,7 +81,7 @@ public class CryptoUtils {
     }
 
     /**
-     * Generates a random AES key (Criterion 3)
+     * Generates a random AES key
      * @param keySize Must be 128, 192, or 256 bits
      */
     public static SecretKey generateAESKey(int keySize) throws NoSuchAlgorithmException {
@@ -90,21 +90,21 @@ public class CryptoUtils {
         }
 
         KeyGenerator keyGen = KeyGenerator.getInstance("AES");
-        keyGen.init(keySize, new SecureRandom()); // Using SecureRandom as required
+        keyGen.init(keySize, new SecureRandom());
         return keyGen.generateKey();
     }
 
     /**
-     * Generates a random initialization vector for AES (Criterion 5)
+     * Generates a random initialization vector for AES
      */
     public static byte[] generateIV() {
-        byte[] iv = new byte[16]; // 16 bytes = 128 bits, standard for AES
+        byte[] iv = new byte[16];
         new SecureRandom().nextBytes(iv);
         return iv;
     }
 
     /**
-     * Encrypts data using AES in CBC mode with a random IV (Criterion 5)
+     * Encrypts data using AES in CBC mode with a random IV
      */
     public static byte[] encryptAES(byte[] data, SecretKey key, byte[] iv) throws Exception {
         Cipher cipher = Cipher.getInstance(AES_ALGORITHM, "BC");
@@ -114,7 +114,7 @@ public class CryptoUtils {
     }
 
     /**
-     * Decrypts data using AES in CBC mode (Criterion 5)
+     * Decrypts data using AES in CBC mode
      */
     public static byte[] decryptAES(byte[] encryptedData, SecretKey key, byte[] iv) throws Exception {
         Cipher cipher = Cipher.getInstance(AES_ALGORITHM, "BC");
@@ -124,7 +124,7 @@ public class CryptoUtils {
     }
 
     /**
-     * Encrypts data using RSA with OAEP padding (Criterion 4)
+     * Encrypts data using RSA with OAEP padding
      */
     public static byte[] encryptRSA(byte[] data, PublicKey publicKey) throws Exception {
         Cipher cipher = Cipher.getInstance(RSA_ALGORITHM, "BC");
@@ -138,7 +138,7 @@ public class CryptoUtils {
     }
 
     /**
-     * Decrypts data using RSA with OAEP padding (Criterion 4)
+     * Decrypts data using RSA with OAEP padding
      */
     public static byte[] decryptRSA(byte[] encryptedData, PrivateKey privateKey) throws Exception {
         Cipher cipher = Cipher.getInstance(RSA_ALGORITHM, "BC");
@@ -152,7 +152,7 @@ public class CryptoUtils {
     }
 
     /**
-     * Signs data using RSA with SHA-256 (Criterion 6)
+     * Signs data using RSA with SHA-256
      */
     public static byte[] sign(byte[] data, PrivateKey privateKey) throws Exception {
         Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM, "BC");
@@ -162,7 +162,7 @@ public class CryptoUtils {
     }
 
     /**
-     * Verifies a signature using RSA with SHA-256 (Criterion 6)
+     * Verifies a signature using RSA with SHA-256
      */
     public static boolean verifySignature(byte[] data, byte[] signatureBytes, PublicKey publicKey) throws Exception {
         Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM, "BC");

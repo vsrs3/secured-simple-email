@@ -58,7 +58,7 @@ public class Database {
 
 			ResultSet rs = selectStmt.executeQuery();
 
-			if (rs.next()) {  // Changed from rs.first() to rs.next()
+			if (rs.next()) {
 				mail = new Mail();
 				mail.setId(rs.getInt("id"));
 				mail.setSender(rs.getString("sender"));
